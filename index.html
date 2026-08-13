@@ -5032,6 +5032,7 @@ async function syncPatrolData() {
             <div style="font-size:13px; color:#4a5568; font-weight:bold; margin-bottom:6px;">
               平均: <span style="font-size:16px; color:#2d3748; font-weight:900;">¥${sellPrice.toLocaleString()}</span>
             </div>
+            ${Number(item.buyboxAvg) > 0 ? `<div style="font-size:13px; color:#2b6cb0; font-weight:bold; margin-bottom:6px;">bb: <span style="font-size:16px; font-weight:900;">¥${Number(item.buyboxAvg).toLocaleString()}</span></div>` : ''}
             <div style="font-size:13px; font-weight:bold; color:#e53e3e;">
               最安: <span style="font-size:16px; font-weight:900;">¥${minUsed.toLocaleString()}</span>
             </div>
