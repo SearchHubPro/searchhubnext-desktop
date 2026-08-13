@@ -5046,7 +5046,7 @@ async function syncPatrolData() {
               平均: <span style="font-size:16px; color:#2d3748; font-weight:900;">¥${sellPrice.toLocaleString()}</span>
             </div>
             ${Number(item.buyboxAvg) > 0 ? `<div style="font-size:13px; color:#2b6cb0; font-weight:bold; margin-bottom:6px;">bb: <span style="font-size:16px; font-weight:900;">¥${Number(item.buyboxAvg).toLocaleString()}</span></div>` : ''}
-            ${Number(item.solidPrice) > 0 ? `<div style="font-size:13px; color:#b7791f; font-weight:bold; margin-bottom:6px;">鉄板: <span style="font-size:16px; font-weight:900;">¥${Number(item.solidPrice).toLocaleString()}</span><span style="font-size:11px; opacity:.8;">${Number(item.solidDips) > 0 ? ' ' + item.solidDips + '回' : ''}</span></div>` : ''}
+            ${Number(item.solidPrice) > 0 ? `<div style="font-size:13px; color:#b7791f; font-weight:bold; margin-bottom:6px;">鉄板: <span style="font-size:16px; font-weight:900;">¥${Number(item.solidPrice).toLocaleString()}</span><span style="font-size:11px; opacity:.8;">${Number(item.solidDips) > 0 ? ' ' + item.solidDips + '回' : ''}${Number(item.solidAvgHours) > 0 ? ' / ' + item.solidAvgHours + '時間で消える' : ''}</span></div>` : ''}
             <div style="font-size:13px; font-weight:bold; color:#e53e3e;">
               最安: <span style="font-size:16px; font-weight:900;">¥${minUsed.toLocaleString()}</span>
             </div>
