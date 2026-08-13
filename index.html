@@ -597,11 +597,13 @@
           <select id="rs-watcherMode" style="width:100%; box-sizing:border-box; padding:8px; border:1px solid #cbd5e0; border-radius:6px; font-size:13px; margin-bottom:4px;">
             <option value="A">【A】90日平均から仕入値を出す</option>
             <option value="B">【B】buybox平均から仕入値を出す</option>
+            <option value="C">【C】鉄板値から仕入値を出す</option>
           </select>
           <div style="font-size:11px; color:#718096; margin-bottom:12px; line-height:1.6;">
             ウォッチャー・スナイパー両方の検索URLで使う仕入れ値の基準です。<br>
             <b>【B】はカートを取った中古の90日平均（buybox平均）</b>から出します。実際に売れている値段なので、誰かの言い値に引っ張られません。<br>
-            buybox平均が取れない商品（カートを取れる中古が90日で1件も無かった等）だけ、これまでのBと同じく<b>最安値</b>から出します。ただし最安値が90日平均より高いときは90日平均に戻します。
+            buybox平均が取れない商品（カートを取れる中古が90日で1件も無かった等）だけ、これまでのBと同じく<b>最安値</b>から出します。ただし最安値が90日平均より高いときは90日平均に戻します。<br>
+            <b>【C】は鉄板値</b>から出します。よこよこの相場から一瞬だけ落ちて、すぐ元に戻る値段のことで、出したらすぐ買われる値段です。一番堅い代わりに拾ってくる件数は減ります。鉄板値が取れない商品はBの流れに落とします。
           </div>
           <label style="font-size:12px; font-weight:bold; display:block; margin-bottom:4px;">🚫 除外ワード(URL末尾用)</label>
           <textarea id="rs-excludeWords" rows="2" style="width:100%; box-sizing:border-box; padding:8px; border:1px solid #cbd5e0; border-radius:6px; font-size:12px; margin-bottom:12px;"></textarea>
@@ -2471,6 +2473,12 @@
             has(item.secondSouba) ? item.secondSouba : item.minUsed,
             has(item.secondLimit) ? item.secondLimit : item.minBuy,
             item.profitMin, item.rateMin) +
+        // 🌟 3行目は鉄板値。よこよこの相場から一瞬落ちてすぐ戻る値段で、
+        //   出したらすぐ買われる値段。谷が取れていない商品では行ごと出さない。
+        (Number(item.solidPrice) > 0
+          ? row('鉄板値' + (Number(item.solidDips) > 0 ? '(' + item.solidDips + '回)' : ''),
+                item.solidPrice, item.solidLimit, item.profitSolid, item.rateSolid)
+          : '') +
         '</table>' +
         '<div class="pl-note">' +
         (isAuction
@@ -5038,6 +5046,7 @@ async function syncPatrolData() {
               平均: <span style="font-size:16px; color:#2d3748; font-weight:900;">¥${sellPrice.toLocaleString()}</span>
             </div>
             ${Number(item.buyboxAvg) > 0 ? `<div style="font-size:13px; color:#2b6cb0; font-weight:bold; margin-bottom:6px;">bb: <span style="font-size:16px; font-weight:900;">¥${Number(item.buyboxAvg).toLocaleString()}</span></div>` : ''}
+            ${Number(item.solidPrice) > 0 ? `<div style="font-size:13px; color:#b7791f; font-weight:bold; margin-bottom:6px;">鉄板: <span style="font-size:16px; font-weight:900;">¥${Number(item.solidPrice).toLocaleString()}</span><span style="font-size:11px; opacity:.8;">${Number(item.solidDips) > 0 ? ' ' + item.solidDips + '回' : ''}</span></div>` : ''}
             <div style="font-size:13px; font-weight:bold; color:#e53e3e;">
               最安: <span style="font-size:16px; font-weight:900;">¥${minUsed.toLocaleString()}</span>
             </div>
