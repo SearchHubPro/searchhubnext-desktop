@@ -138,6 +138,7 @@
     .pl-bd { font-size: 10.5px; font-weight: 700; color: #fff; padding: 3px 10px; border-radius: 999px; white-space: nowrap; }
     .pl-buy { background: #38a169; }
     .pl-half { background: #dd6b20; }
+    .pl-solid { background: #e53e3e; }
     .pl-no { background: #a0aec0; }
     .pl-none { background: #e2e8f0; color: #718096; }
     .pl-dt { font-size: 11px; color: #a0aec0; white-space: nowrap; width: 74px; text-align: right; }
@@ -2441,7 +2442,12 @@
           : '<span class="pl-pf ' + (bestProfit > 0 ? 'pos' : 'neg') + '">利益<b>' + yen(bestProfit) + '</b>' +
             (has(bestRate) ? '<i>' + Number(bestRate) + '%</i>' : '') + '</span>';
         let badge = '<span class="pl-bd pl-no">見送り</span>';
-        if (okAvg && okMin) badge = '<span class="pl-bd pl-buy">買い</span>';
+        // 🌟 鉄板値の仕入上限に収まっているものは、ただの「買い」ではなく
+        //   赤い「鉄板」にする。一番間違いのない形なので一目で分かるようにする。
+        const okSolid = Number(item.solidPrice) > 0 && Number(item.solidLimit) > 0
+          && listPrice > 0 && listPrice <= Number(item.solidLimit);
+        if (okSolid) badge = '<span class="pl-bd pl-solid">鉄板</span>';
+        else if (okAvg && okMin) badge = '<span class="pl-bd pl-buy">買い</span>';
         else if (okAvg) badge = '<span class="pl-bd pl-half">平均のみ</span>';
         headRight = '<span class="pl-kv">出品<b>' + yen(listPrice) + '</b></span>' + pfHtml + badge;
       }
