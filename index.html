@@ -376,7 +376,7 @@
     </div>
     <div class="header-right">
       <!-- 🌟 巡回リストの一発解析から来た時だけ出る。押すとその出品ページが開く -->
-      <a id="patrolLinkBtn" href="#" target="_blank" rel="noopener" style="display:none; align-items:center; justify-content:center; width:36px; height:36px; border-radius:8px; background:#e53e3e; color:#fff; text-decoration:none; font-size:16px;"><i class="fas fa-play"></i></a>
+      <a id="patrolLinkBtn" href="#" target="_blank" rel="noopener" style="display:none; align-items:center; justify-content:center; width:36px; height:36px; border-radius:8px; background:#e53e3e; color:#fff; text-decoration:none; font-size:16px;"><i class="fas fa-arrow-up-right-from-square"></i></a>
     </div>
   </div>
 </div>
@@ -2194,7 +2194,7 @@
       const logoEl = document.getElementById('headerLogo');
       const textWrapperEl = document.getElementById('headerTextWrapper');
       
-      // 🌟 ヘッダー右の▶️は、Amazonリサーチの画面にいる時だけ出す
+      // 🌟 ヘッダー右の外部リンクボタンは、Amazonリサーチの画面にいる時だけ出す
       {
         const pBtn = document.getElementById('patrolLinkBtn');
         if (pBtn && viewId !== 'view-amazon') pBtn.style.display = 'none';
@@ -2763,7 +2763,7 @@ async function syncPatrolData() {
         //   「その出品を開く」ボタンを出し、仕入れ値にも拾った価格を入れる。
         //   検索欄や履歴から調べた時は空にして、前の商品の情報が残らないようにする。
         let patrolOrigin = null;
-        // 🌟 ヘッダー右の▶️。巡回リストから来た時だけ出して、その出品ページへ飛ばす。
+        // 🌟 ヘッダー右の外部リンクボタン。巡回リストから来た時だけ出して、その出品ページへ飛ばす。
         function updatePatrolLinkBtn() {
           const btn = document.getElementById("patrolLinkBtn");
           if (!btn) return;
@@ -3190,9 +3190,11 @@ async function syncPatrolData() {
             const solidNow = solidFromStats(p.stats, p.csv);
             window.tmpTrendLabel = trendNow;
             const RANK_COLORS = { SSR: '#d69e2e', SR: '#a855f7', S: '#ff0000', A: '#ff8c00', B: '#32cd32', C: '#1e90ff', D: '#808080', E: '#808080' };
-            const rColor = RANK_COLORS[rank] || '#808080';
             // 🌟 画面に出す文字だけ「+」を足す。保存や判定に使う rank はそのまま。
+            //   色も「+」が付いた時だけ NEAR_RARE_COLOR に変える(全画面で同じ色)。
+            const NEAR_RARE_COLOR = '#d53f8c';
             const rankLabel = rank + (isNearRare ? '+' : '');
+            const rColor = isNearRare ? NEAR_RARE_COLOR : (RANK_COLORS[rank] || '#808080');
             window.tmpRank = rank;
             
             // 🌟 サイズ判定はサーバー(cron)と完全に同じルールにする。
@@ -3972,6 +3974,8 @@ async function syncPatrolData() {
             else if (rankText === 'A') rankColor = '#f7941d'; 
             else if (rankText === 'B') rankColor = '#3182ce'; 
             else if (rankText === 'C') rankColor = '#07A27B'; 
+            // 🌟「+」が付いた商品は、ランクに関係なくこの色にする(全画面で同じ)
+            if (item.near_rare) rankColor = '#d53f8c';
             // 🌟 サイズ区分
             let sizeTier = item.size ? item.size.toString() : '標準';
             let sizeColor = sizeTier.includes('大型') ? '#e53e3e' : '#07A27B';
