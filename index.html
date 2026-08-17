@@ -1321,6 +1321,9 @@
         </div>
         
         <div style="display:flex; gap:10px; align-items:center;">
+          <select id="expense-year-selector" onchange="loadExpenseListData()" style="padding:10px; border-radius:8px; border:1px solid #cbd5e0; font-weight:bold; font-size:14px; outline:none; background:#fff; color:#1a365d; cursor:pointer; min-width:96px;">
+            <option value="">--</option>
+          </select>
           <select id="expense-month-selector" onchange="renderExpenseTable()" style="padding:10px; border-radius:8px; border:1px solid #cbd5e0; font-weight:bold; font-size:14px; outline:none; background:#fff; color:#1a365d; cursor:pointer;">
             <option value="ALL">すべて表示</option>
           </select>
@@ -1333,9 +1336,11 @@
           </button>
         </div>
       </div>
-      <div class="search-box" style="margin-bottom:16px;">
+      <div class="search-box" style="margin-bottom:6px;">
         <input type="text" id="expense-search-kw" placeholder="日付・種類・メモで検索..." oninput="renderExpenseTable();" style="flex:1;">
       </div>
+      <!-- 🌟 年で絞っていることを必ず画面に出す。黙って切らない。 -->
+      <div id="expense-year-note" style="display:none; font-size:11px; color:#718096; margin:0 0 14px 4px; line-height:1.7;"></div>
       <div style="overflow: auto; max-height: 70vh; background: white; border: 1px solid #e2e8f0; border-radius: 8px; box-shadow: 0 1px 3px rgba(0,0,0,0.05);">
         <table id="expenseTable" style="width: 100%; border-collapse: separate; border-spacing: 0; font-size: 13px; text-align: left; white-space: nowrap;">
           <thead>
@@ -5609,6 +5614,27 @@ async function syncPatrolData() {
       }
     }
     let globalExpenseData = [];
+    // 🌟 年の選択肢を作り直し、いま何を出しているかを画面に書く。
+    //   上限で黙って切るのではなく、切っている事実を必ず見せる。
+    function applyExpenseYearSelector(json) {
+      const ysel = document.getElementById('expense-year-selector');
+      const note = document.getElementById('expense-year-note');
+      const years = (json && json.years) ? json.years : [];
+      const year = (json && json.year) ? json.year : '';
+      if (ysel && years.length > 0) {
+        ysel.innerHTML = '';
+        years.forEach(y => ysel.appendChild(new Option(y + '年', y)));
+        if (year) ysel.value = year;
+      }
+      if (note) {
+        if (year && years.length > 0) {
+          note.innerHTML = `📅 いま出しているのは <b>${year}年</b> の分だけです。ほかの年は右上の年で切り替えてください。`;
+          note.style.display = 'block';
+        } else {
+          note.style.display = 'none';
+        }
+      }
+    }
     async function loadExpenseListData() {
       const tbody = document.getElementById('expenseResultBody');
       const countEl = document.getElementById('expenseTotalCount');
@@ -5618,12 +5644,18 @@ async function syncPatrolData() {
       tbody.innerHTML = '<tr><td colspan="7" style="text-align:center; padding:40px; color:#2b6cb0;">⌛ 鏡写しデータを生成中...</td></tr>';
       
       try {
+        // 🌟【年で絞る】画面に出すのは1年ぶん。選ばれていなければサーバーが最新の年を返す。
+        const ysel = document.getElementById('expense-year-selector');
+        const askYear = (ysel && /^\d{4}$/.test(ysel.value)) ? ysel.value : "";
         const res = await fetchWithAuth(targetGasUrl, {
           method: 'POST',
-          body: JSON.stringify({ command: 'getExpenseListData', ssUrl: ssUrl })
+          body: JSON.stringify({ command: 'getExpenseListData', ssUrl: ssUrl, year: askYear })
         });
         const json = await res.json();
-        
+
+        // 年の選択肢を作り直し、いま何を出しているかを画面に書く。
+        applyExpenseYearSelector(json);
+
         if (json.success && json.data) {
           globalExpenseData = json.data; // 🌟 Supabase版:各行の末尾に既にID(UUID)が入っている
           const monthSet = new Set();
