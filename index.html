@@ -2493,11 +2493,24 @@
 
       // 相場が無い(仕入れリストから消した・まだリサーチ前など)ときは、開かない1行
       if (!(souba > 0) || (!isAuction && !(listPrice > 0))) {
+        // 🌟【なぜ表が出ないのかを書く】以前はここで表を丸ごと省くだけで、
+        //   理由がどこにも出ていなかった。見た人には「札が壊れている」ようにしか見えない。
+        //
+        //   中古の出品者が1人以下の商品は、Keepaに中古の相場そのものが無い。
+        //   在庫更新を何回まわしても数字は入らないので、そこを正しく伝える。
+        //   これは悪い情報ではなく「ライバルがいない」という意味でもあるため、
+        //   一発解析で確かめる、という次の一手まで書いておく。
+        var shNoMarket = (item.marketUnclear === true && Number(item.usedOfferCount || 0) <= 1)
+          ? '💎 中古が枯れています（出品者' + Number(item.usedOfferCount || 0) + '人）。相場が出せないので一発解析で確かめてください。'
+          : '相場がまだ取れていません。一発解析で確かめてください。';
         return '<div class="pl-row pl-flat">' + thumb + titleLink +
           '<span class="status-tag" style="font-size:12px;">' + escapeHtml(item.status) + '</span>' +
           (isAuction ? '' : '<span class="price-tag">' + escapeHtml(item.price) + '</span>') +
           dateHtml + '<span class="pl-car"></span></div>' +
-          (asinBtn ? '<div class="pl-body" style="display:block; padding:0 12px 12px 64px;"><div class="pl-acts">' + asinBtn + openBtn + '</div></div>' : '');
+          '<div class="pl-body" style="display:block; padding:0 12px 12px 64px;">' +
+            '<div class="pl-note">' + shNoMarket + '</div>' +
+            '<div class="pl-acts">' + asinBtn + openBtn + '</div>' +
+          '</div>';
       }
 
       const okAvg = has(item.profitAvg) && Number(item.profitAvg) > 0;
