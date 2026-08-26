@@ -3056,6 +3056,7 @@ async function syncPatrolData() {
             // ... (以下既存のコードそのまま)
             const pickedAsin = pickAsinFromText(kw);
             let asin = pickedAsin || kw;
+            let cameFromDict = false;   // 辞書から出したかどうか（画面に出す）
             if (!pickedAsin && !/^[A-Z0-9]{10}$/i.test(kw)) {
               const forceSearch = window.__forceKeepaSearch === true;
               window.__forceKeepaSearch = false;
@@ -3065,6 +3066,7 @@ async function syncPatrolData() {
                 return;
               }
               if (!searchJson.products || searchJson.products.length === 0) { resView.innerHTML = '<div class="card" style="color:#e53e3e; text-align:center;">❌ 商品が見つかりませんでした。</div>'; return; }
+              cameFromDict = (searchJson.__fromDict === true);
               asin = searchJson.products[0].asin;
             }
             const prodJson = await callKeepaViaServer({ kind: "product", asin: asin, stats: "90", buybox: true, history: true });
@@ -3300,6 +3302,7 @@ async function syncPatrolData() {
             }
             // 💡 2. 左・中・右 の完璧な横並びレイアウト！（PC版最適化）
             window.tmpSizeTier = sizeTier;
+            window.__dictNoticeKw = cameFromDict ? kw : "";
             resView.innerHTML = `
               <div style="display:flex; flex-direction:row; gap:24px; align-items:center; background:#fff; border-radius:12px; border:1px solid #e2e8f0; padding:24px; margin-bottom:16px; box-shadow:0 1px 3px rgba(0,0,0,0.05);">
                 
@@ -3396,6 +3399,8 @@ async function syncPatrolData() {
             ['sPrice', 'bPrice', 'ePrice'].forEach(id => { document.getElementById(id).addEventListener('input', updateCalc); });
             updateCalc();
             refreshSearchLinks();
+            // 🌟 辞書から出したときだけ、上に注意書きと聞き直しボタンを出す
+            if (cameFromDict) showDictNotice(kw);
             
             // 🚀 解析成功時に履歴に保存！
     saveAmazonHistory({ kw: asin, title: productTitle, img: imageUrl, rank: rank, rColor: rColor, used: usedOffers });
@@ -6737,6 +6742,29 @@ async function syncPatrolData() {
           || AppStorage.get("sh_tensite_url", "")
           || "https://ihsjwsdwjuapfdhtocmq.supabase.co/functions/v1/manager";
     }
+    // 🌟【辞書から出したことを画面に出す】
+    //   型番で調べたとき、辞書に1件だけ当たるとKeepaに聞かずにそれで確定する。
+    //   Keepa側の型番が実物とずれている商品では、それが別物のことがある
+    //   （例：PlayStation 5 の通常版が CFI-1200A で登録されていた）。
+    //   黙って確定させず、聞き直せる道を必ず1つ残しておく。
+    function showDictNotice(kw) {
+      const box = document.getElementById("amazonResult");
+      if (!box || !kw) return;
+      box.insertAdjacentHTML("afterbegin",
+        '<div style="display:flex; align-items:center; justify-content:space-between; gap:8px; background:#fffaf0; border:1px solid #f6c000; border-radius:8px; padding:8px 10px; margin-bottom:8px;">'
+        + '<span style="font-size:11px; font-weight:bold; color:#744210; line-height:1.4;">この商品で合っていますか？<br><span style="font-weight:normal;">違うときは右のボタンで探し直せます</span></span>'
+        + '<button onclick="redoWithKeepa()" style="flex-shrink:0; background:#4a5568; color:#fff; border:none; padding:8px 12px; border-radius:6px; font-size:11px; font-weight:bold; cursor:pointer;">Keepaで探し直す<br>（10トークン）</button>'
+        + '</div>');
+    }
+    // 辞書を使わずにKeepaへ聞き直す。候補が複数あれば選ぶ画面が出る。
+    window.redoWithKeepa = function () {
+      const kw = window.__dictNoticeKw || "";
+      if (!kw) return;
+      const box = document.getElementById("amazonKw");
+      if (box) box.value = kw;
+      window.__forceKeepaSearch = true;
+      runAmazonResearch();
+    };
     async function callKeepaViaServer(payload) {
       const res = await fetchWithAuth(getManagerApiUrl(), {
         method: "POST",
@@ -6746,6 +6774,9 @@ async function syncPatrolData() {
       if (!result || !result.success) throw new Error((result && result.message) || "Keepaの取得に失敗しました");
       // 🌟 辞書で1つに決まらなかったときは、候補だけが返ってくる（トークンは0）
       if (result.needPick) return { dictCandidates: result.dictCandidates || [] };
+      // 🌟 辞書から出したのかKeepaに聞いたのかを、呼んだ側に伝える。
+      //   画面に「辞書から出しました」と出して、押せば聞き直せるようにするため。
+      try { if (result.keepa && typeof result.keepa === "object") result.keepa.__fromDict = (result.fromDict === true); } catch (e) {}
       return result.keepa;
     }
     function getSettingsApiUrl() {
