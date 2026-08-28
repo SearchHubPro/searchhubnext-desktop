@@ -120,7 +120,23 @@
 
     /* 🌟 巡回リスト(スナイパー/ウォッチャー)の1行カード。
        閉じている時は1行だけ。押した1件だけが開く。 */
-    .pl-card { padding: 0 !important; margin-bottom: 8px !important; overflow: hidden; }
+    /* 🌟 巡回・スナイパーの札。モバイル版と同じ形にそろえた。
+       以前は1行にたたんで、押した1件だけが開く形だった。
+       開くまで相場も利益も見えず、毎回押さないと判断できなかったため、
+       モバイルと同じ「最初から表が見えている札」に統一した。 */
+    .pl-card { padding: 12px !important; margin-bottom: 10px !important; overflow: hidden; }
+    .pl-head { display: flex; gap: 12px; align-items: flex-start; margin-bottom: 10px; }
+    .pl-thumb { width: 72px; height: 72px; flex: none; border: 1px solid #e2e8f0; border-radius: 8px; background: #fff; object-fit: contain; padding: 2px; }
+    .card.read-card .pl-thumb { opacity: 0.5; }
+    .pl-hd { flex: 1; min-width: 0; }
+    .pl-top { display: flex; align-items: baseline; justify-content: space-between; margin-bottom: 0; }
+    .pl-list { font-size: 12px; color: #4a5568; }
+    .pl-list b { font-size: 22px; color: #1a202c; font-weight: 800; letter-spacing: -0.3px; margin-left: 4px; }
+    .pl-date { font-size: 11.5px; color: #a0aec0; }
+    .pl-badge { display: inline-block; font-size: 11px; font-weight: 700; color: #fff; padding: 3px 10px; border-radius: 999px; margin-left: 8px; vertical-align: 2px; }
+    .card.read-card .pl-list b,
+    .card.read-card .pl-date { color: #6c757d !important; }
+    .card.read-card .pl-badge { background: #adb5bd !important; }
     .pl-row { display: flex; align-items: center; gap: 12px; padding: 8px 12px; cursor: pointer; }
     .pl-row.pl-flat { cursor: default; }
     .pl-th { width: 40px; height: 40px; flex: none; border: 1px solid #e2e8f0; border-radius: 6px; background: #fff; object-fit: contain; }
@@ -143,9 +159,7 @@
     .pl-none { background: #e2e8f0; color: #718096; }
     .pl-dt { font-size: 11px; color: #a0aec0; white-space: nowrap; width: 74px; text-align: right; }
     .pl-car { font-size: 11px; color: #a0aec0; width: 12px; text-align: center; }
-    .pl-body { display: none; padding: 0 12px 12px 64px; }
-    .pl-card.pl-open { border-color: #bee3f8; box-shadow: 0 2px 10px rgba(43,108,176,0.12); }
-    .pl-card.pl-open .pl-body { display: block; }
+    .pl-body { display: block; }
     table.pl-rows { width: 100%; border-collapse: collapse; border: 1px solid #e2e8f0; border-radius: 8px; overflow: hidden; }
     table.pl-rows th { font-size: 10.5px; color: #718096; font-weight: 700; background: #edf2f7; padding: 6px 10px; text-align: right; }
     table.pl-rows th:first-child { text-align: left; }
@@ -2476,71 +2490,50 @@
       const has = function (v) { return v !== null && v !== undefined && !isNaN(Number(v)); };
 
       // 🌟 写真が無い商品は、枠だけ置くと空白がぽっかり空くので何も置かない
-      const thumb = item.img
-        ? '<img class="pl-th" src="' + item.img + '" loading="lazy" alt="" onerror="this.onerror=null; this.style.display=\'none\';">'
+      const thumbHtml = item.img
+        ? '<img class="pl-thumb" src="' + item.img + '" loading="lazy" alt="" onerror="this.onerror=null; this.style.display=\'none\';">'
         : '';
-      const titleLink = '<a class="pl-ttl" href="' + item.url + '" target="_blank" data-key="' + uniqueKey + '" data-url="' + item.url + '" onclick="event.stopPropagation(); markAsRead(this);">💎 ' + escapeHtml(item.title) + '</a>';
-      const dateHtml = '<span class="pl-dt">' + (dateTimeText || '') + '</span>';
+      const titleHtml = '<div class="item-title"><a href="' + item.url + '" target="_blank" data-key="' + uniqueKey + '" data-url="' + item.url + '" onclick="markAsRead(this);">💎 ' + escapeHtml(item.title) + '</a></div>';
+      const headHtml = function (inner) {
+        return '<div class="pl-head">' + thumbHtml + '<div class="pl-hd">' + titleHtml + inner + '</div></div>';
+      };
 
       const asinBtn = (item.asin && item.asin !== "undefined")
-        ? '<button class="auto-asin-btn" data-key="' + uniqueKey + '" data-url="' + item.url + '" onclick="event.stopPropagation(); markAsRead(this); openView(\'view-amazon\'); jumpToAmazonResearch(\'' + escapeHtml(item.asin) + '\', \'' + escapeHtml(item.title) + '\', \'' + item.url + '\', \'' + escapeHtml(String(item.price || '')) + '\', \'' + escapeHtml(siteName) + '\')">' +
+        ? '<button class="auto-asin-btn" data-key="' + uniqueKey + '" data-url="' + item.url + '" onclick="markAsRead(this); openView(\'view-amazon\'); jumpToAmazonResearch(\'' + escapeHtml(item.asin) + '\', \'' + escapeHtml(item.title) + '\', \'' + item.url + '\', \'' + escapeHtml(String(item.price || '')) + '\', \'' + escapeHtml(siteName) + '\')">' +
           '<span style="font-size:14px;">📦</span> ASIN: ' + escapeHtml(item.asin) + ' で一発解析</button>'
         : '';
-      const openBtn = '<a class="pl-open-btn" href="' + item.url + '" target="_blank" data-key="' + uniqueKey + '" data-url="' + item.url + '" onclick="event.stopPropagation(); markAsRead(this);">🔗 出品ページを開く</a>';
+      const openBtn = '<a class="pl-open-btn" href="' + item.url + '" target="_blank" data-key="' + uniqueKey + '" data-url="' + item.url + '" onclick="markAsRead(this);">🔗 出品ページを開く</a>';
+      const actsHtml = '<div class="pl-acts">' + asinBtn + openBtn + '</div>';
 
       const listPrice = Number(item.listPrice || 0);
       const souba = Number(item.sellPrice || 0);
 
-      // 相場が無い(仕入れリストから消した・まだリサーチ前など)ときは、開かない1行
+      // 相場が無い(仕入れリストから消した・まだリサーチ前など)ときは表を出さない
       if (!(souba > 0) || (!isAuction && !(listPrice > 0))) {
-        // 🌟【なぜ表が出ないのかを書く】以前はここで表を丸ごと省くだけで、
-        //   理由がどこにも出ていなかった。見た人には「札が壊れている」ようにしか見えない。
-        //
-        //   中古の出品者が1人以下の商品は、Keepaに中古の相場そのものが無い。
-        //   在庫更新を何回まわしても数字は入らないので、そこを正しく伝える。
-        //   これは悪い情報ではなく「ライバルがいない」という意味でもあるため、
-        //   一発解析で確かめる、という次の一手まで書いておく。
+        // 🌟【なぜ表が出ないのかを書く】理由を出さないと、見た人には
+        //   「札が壊れている」ようにしか見えない。次の一手まで書いておく。
         var shNoMarket = (item.marketUnclear === true && Number(item.usedOfferCount || 0) <= 1)
           ? '💎 中古が枯れています（出品者' + Number(item.usedOfferCount || 0) + '人）。相場が出せないので一発解析で確かめてください。'
           : '相場がまだ取れていません。一発解析で確かめてください。';
-        return '<div class="pl-row pl-flat">' + thumb + titleLink +
-          '<span class="status-tag" style="font-size:12px;">' + escapeHtml(item.status) + '</span>' +
-          (isAuction ? '' : '<span class="price-tag">' + escapeHtml(item.price) + '</span>') +
-          dateHtml + '<span class="pl-car"></span></div>' +
-          '<div class="pl-body" style="display:block; padding:0 12px 12px 64px;">' +
-            '<div class="pl-note">' + shNoMarket + '</div>' +
-            '<div class="pl-acts">' + asinBtn + openBtn + '</div>' +
-          '</div>';
+        return headHtml(
+          '<div class="item-meta"><span><span class="status-tag">' + escapeHtml(item.status) + '</span>' +
+          (dateTimeText ? ' <span class="pl-date" style="margin-left:6px;">' + dateTimeText + '</span>' : '') +
+          '</span><span class="price-tag">' + escapeHtml(isAuction ? '' : item.price) + '</span></div>' +
+          '<div class="pl-note" style="margin-top:6px;">' + shNoMarket + '</div>'
+        ) + actsHtml;
       }
 
       const okAvg = has(item.profitAvg) && Number(item.profitAvg) > 0;
       const okMin = has(item.profitMin) && Number(item.profitMin) > 0;
-
-      // 行の右側(閉じていても見える部分)
-      let headRight;
-      if (isAuction) {
-        headRight = '<span class="status-tag" style="font-size:12px;">' + escapeHtml(item.status) + '</span>' +
-          '<span class="pl-kv">仕入上限<b>' + yen(item.buyPrice) + '</b></span>' +
-          '<span class="pl-bd pl-none">—</span>';
-      } else {
-        // 平均・最安のうち、良いほうの利益を1つだけ出す
-        const bestProfit = has(item.profitAvg) && has(item.profitMin)
-          ? Math.max(Number(item.profitAvg), Number(item.profitMin))
-          : (has(item.profitAvg) ? Number(item.profitAvg) : (has(item.profitMin) ? Number(item.profitMin) : null));
-        const bestRate = (bestProfit !== null && Number(item.profitAvg) === bestProfit) ? item.rateAvg : item.rateMin;
-        const pfHtml = (bestProfit === null)
-          ? ''
-          : '<span class="pl-pf ' + (bestProfit > 0 ? 'pos' : 'neg') + '">利益<b>' + yen(bestProfit) + '</b>' +
-            (has(bestRate) ? '<i>' + Number(bestRate) + '%</i>' : '') + '</span>';
-        let badge = '<span class="pl-bd pl-no">見送り</span>';
-        // 🌟 鉄板値の仕入上限に収まっているものは、ただの「買い」ではなく
-        //   赤い「鉄板」にする。一番間違いのない形なので一目で分かるようにする。
+      let badge = '';
+      if (!isAuction) {
+        // 🌟 鉄板値の仕入上限に収まっているものは、ただの「買い」ではなく赤い「鉄板」。
+        //   出したらすぐ買われる値段で仕入れられる、一番間違いのない形。
         const okSolid = Number(item.solidPrice) > 0 && Number(item.solidLimit) > 0
           && listPrice > 0 && listPrice <= Number(item.solidLimit);
-        if (okSolid) badge = '<span class="pl-bd pl-solid">鉄板</span>';
-        else if (okAvg && okMin) badge = '<span class="pl-bd pl-buy">買い</span>';
-        else if (okAvg) badge = '<span class="pl-bd pl-half">平均のみ</span>';
-        headRight = '<span class="pl-kv">出品<b>' + yen(listPrice) + '</b></span>' + pfHtml + badge;
+        if (okSolid) badge = '<span class="pl-badge pl-solid">鉄板</span>';
+        else if (okAvg && okMin) badge = '<span class="pl-badge pl-buy">買い</span>';
+        else if (okAvg) badge = '<span class="pl-badge pl-half">平均のみ</span>';
       }
 
       const row = function (label, soubaVal, limitVal, profitVal, rateVal) {
@@ -2559,9 +2552,13 @@
           (isAuction ? '' : '<td class="pl-p">' + profitCell + '</td>') + '</tr>';
       };
 
-      return '<div class="pl-row" onclick="togglePatrolCard(this)">' + thumb + titleLink + headRight + dateHtml +
-        '<span class="pl-car">▾</span></div>' +
-        '<div class="pl-body">' +
+      const topHtml = isAuction
+        ? '<div class="pl-top"><span class="status-tag">' + escapeHtml(item.status) + '</span>' +
+          '<span class="pl-date">' + (dateTimeText || '') + '</span></div>'
+        : '<div class="pl-top"><span class="pl-list">出品 <b>' + yen(listPrice) + '</b>' + badge + '</span>' +
+          '<span class="pl-date">' + (dateTimeText || '') + '</span></div>';
+
+      return headHtml(topHtml) +
         '<table class="pl-rows">' +
         '<tr><th>基準</th><th>相場</th><th>仕入上限</th>' + (isAuction ? '' : '<th>利益</th>') + '</tr>' +
         row('90日平均', item.sellPrice, item.buyPrice, item.profitAvg, item.rateAvg) +
@@ -2570,8 +2567,7 @@
             has(item.secondSouba) ? item.secondSouba : item.minUsed,
             has(item.secondLimit) ? item.secondLimit : item.minBuy,
             item.profitMin, item.rateMin) +
-        // 🌟 3行目は鉄板値。よこよこの相場から一瞬落ちてすぐ戻る値段で、
-        //   出したらすぐ買われる値段。谷が取れていない商品では行ごと出さない。
+        // 🌟 3行目は鉄板値。谷が取れていない商品では行ごと出さない。
         (Number(item.solidPrice) > 0
           ? row('鉄板値' + (Number(item.solidDips) > 0 ? '(' + item.solidDips + '回)' : ''),
                 item.solidPrice, item.solidLimit, item.profitSolid, item.rateSolid)
@@ -2582,8 +2578,7 @@
           ? '仕入上限まで。オークションなので利益は落札額で決まります'
           : '利益はこの出品価格 ' + yen(listPrice) + ' で買った場合') +
         '</div>' +
-        '<div class="pl-acts">' + asinBtn + openBtn + '</div>' +
-        '</div>';
+        actsHtml;
     }
 
 async function syncPatrolData() {
