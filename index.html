@@ -3978,6 +3978,26 @@ async function syncPatrolData() {
         // ==========================================
         // 🚀 Researcher精査 機能のJSコード
         // ==========================================
+    // 🌟【手数料の内訳】取り込みのときに残した内訳を、読める形にする。
+    //   古い行には内訳が入っていないので、その時はそう出す(黙って空にしない)。
+    function feeDetailLines(item) {
+      const d = item && item.feeDetail;
+      if (!d) return ['内訳は取り込み直すと出ます'];
+      const yen = (v) => '¥' + Math.abs(Number(v || 0)).toLocaleString();
+      const out = [];
+      if (Number(d.referral || 0) !== 0) out.push('販売手数料 ' + yen(d.referral));
+      if (Number(d.fba || 0) !== 0) out.push('FBA手数料 ' + yen(d.fba));
+      if (Number(d.point || 0) !== 0) out.push('Amazonポイントの費用 ' + yen(d.point));
+      if (Number(d.other || 0) !== 0) out.push('その他手数料 ' + yen(d.other));
+      if (out.length === 0) out.push('内訳なし');
+      return out;
+    }
+    // 販売管理の手数料を押したとき、内訳の小窓を開け閉めする(モバイル用)
+    window.toggleFeeDetail = function (key) {
+      const el = document.getElementById('feeDetail_' + key);
+      if (!el) return;
+      el.style.display = (el.style.display === 'none' || !el.style.display) ? 'block' : 'none';
+    };
         let globalResearcherData = [];
         let asinCopyIndex = 0; // コピーした件数を記憶
         // 🌟【手動の相場確認】ヤフオク・メルカリを新しいタブで開くだけの機能。
@@ -4660,7 +4680,7 @@ async function syncPatrolData() {
             <div class="sales-data" style="font-size:11px;">
               <div style="font-size:13px; font-weight:bold; color:#1a365d; margin-bottom:2px;">売上: ¥${Number(item.sales || 0).toLocaleString()}</div>
               <div style="color:#4a5568; font-weight:bold; margin-bottom:2px;">送料: ${Number(item.shipping || 0) < 0 ? '-' : ''}¥${Math.abs(Number(item.shipping || 0)).toLocaleString()}</div>
-              <div style="color:#e53e3e; font-weight:bold;">手数料: ${item.fee < 0 ? '' : '-'}¥${Math.abs(Number(item.fee || 0)).toLocaleString()}</div>
+              <div title="${feeDetailLines(item).join('&#10;')}" style="color:#e53e3e; font-weight:bold; cursor:help; text-decoration:underline dotted;">手数料: ${item.fee < 0 ? '' : '-'}¥${Math.abs(Number(item.fee || 0)).toLocaleString()}</div>
             </div>
           </td>
           <td style="padding: 12px 8px; text-align: right; vertical-align: middle; font-weight: 900; font-size:14px;">
@@ -4760,7 +4780,10 @@ async function syncPatrolData() {
           reportData.push({
             type: "TXT", isMerchant, sku: txtSku, orderId: cols[txtH["amazon-order-id"]],
             date: String(cols[txtH["purchase-date"]] || "").split("T")[0].replace(/-/g, "/"),
-            sales: cleanNum(cols[txtH["item-price"]]), shipping: cleanNum(cols[txtH["shipping-price"]])
+            sales: cleanNum(cols[txtH["item-price"]]), shipping: cleanNum(cols[txtH["shipping-price"]]),
+            // 🌟【送料の割引】Amazonは送料無料を「一旦請求して同額を割引」で書く。
+            //   請求だけ見ると、もらっていない送料を売上に立ててしまう。
+            shipPromo: cleanNum(cols[txtH["ship-promotion-discount"]])
           });
         }
         if (reportType === "CSV" && Object.keys(csvH).length > 0) {
@@ -4828,6 +4851,16 @@ async function syncPatrolData() {
             //   (注文レポート(TXT)のitem-priceは最初から税込)
             salesTaxCSV: getNum("商品の売上税"),
             shippingFromCSV: getNum("配送料"),
+            // 🌟【送料まわりは4つで1組】請求(配送料＋その税)と割引(プロモ＋その税)。
+            //   全額割引なら足して0になる。今までは請求と割引の本体だけを
+            //   別々の欄に入れており、割引の税ぶんだけ利益が多く出ていた。
+            shippingTaxCSV: getNum("配送料の税金"),
+            promoTaxCSV: getNum("プロモーション割引の税金"),
+            // 🌟【今まで1円も拾っていなかった手数料】
+            //   レポートの定義は「FBA配送料のチャージバック、または
+            //   出品者出荷の配送料にかかる手数料」。実際に入金から引かれている。
+            //   (実測: 2026/08/09のEZCastで-146。無視すると利益が146円多く出る)
+            otherFeeCSV: getNum("トランザクションに関するその他の手数料"),
             mktShipFee: mktShip,
             refFee: getNum("販売手数料") + getNum("手数料"),
             fbaFeeCSV: getNum("FBA 手数料"),
