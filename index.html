@@ -13,7 +13,7 @@
   <meta name="apple-mobile-web-app-title" content="SearchHub">
   <meta name="theme-color" content="#6d9eeb">
   <!-- 🌟 アプリの版。更新するたびに書き換える(古い画面が出た時に、これを見比べて自動で読み込み直す) -->
-  <meta name="sh-build" content="2026-10-16d">
+  <meta name="sh-build" content="2026-10-19a">
   <script>
     // 🌙 ダークモード:画面が出る前に付けて、白く光るのを防ぐ
     try { if (localStorage.getItem('sh_dark_mode') === '1') document.documentElement.classList.add('sh-dark'); } catch (e) {}
@@ -585,8 +585,9 @@
         <button id="progress-tab-sniper" onclick="switchProgressScope('sniper')" style="flex:1; padding:8px; border-radius:6px; border:none; font-weight:bold; font-size:12px; cursor:pointer; background:#edf2f7; color:#4a5568;">スナイパー</button>
         <button onclick="loadPatrolProgress()" style="padding:8px 12px; border-radius:6px; border:none; font-weight:bold; font-size:11px; cursor:pointer; background:#edf2f7; color:#4a5568;"><i class="fas fa-sync-alt"></i></button>
         <button id="progress-sync-btn" onclick="syncPatrolTargetsNow()" style="padding:8px 12px; border-radius:6px; border:none; font-weight:bold; font-size:11px; cursor:pointer; background:#3182ce; color:#fff; white-space:nowrap;"><i class="fas fa-link"></i> URL同期</button>
+        <button id="progress-start-btn" onclick="startWatcherPatrolNow()" style="display:none; padding:8px 12px; border-radius:6px; border:none; font-weight:bold; font-size:11px; cursor:pointer; background:#dd6b20; color:#fff; white-space:nowrap;"><i class="fas fa-play"></i> 巡回開始</button>
       </div>
-      <div style="font-size:12px; font-weight:bold; color:#4a5568; margin-bottom:6px;">📊 サイト別進捗(直近6時間の巡回サイクル)</div>
+      <div style="font-size:12px; font-weight:bold; color:#4a5568; margin-bottom:6px;">📊 サイト別進捗(今の巡回サイクル)</div>
       <div id="progress-summary" style="margin-bottom:20px;"></div>
       <div style="font-size:12px; font-weight:bold; color:#4a5568; margin-bottom:6px;">📋 直近の活動ログ</div>
       <div id="progress-activity"></div>
@@ -7604,6 +7605,49 @@ async function syncPatrolData() {
       }
     }
 
+    // 🌟【ウォッチャーの巡回開始】1日2回まで(回数はサーバーが数える)。
+    //   6時・17時の自動予約を設定できない人向け。押すと、自動予約と同じ動きを1回だけ起こす。
+    //   ボタンはウォッチャーのタブを開いている時だけ出し、残り回数を表示する。
+    function renderWatcherStartBtn(result) {
+      const btn = document.getElementById('progress-start-btn');
+      if (!btn) return;
+      const show = currentProgressScope === 'watcher' && result && !result.planLocked && typeof result.manualLeft === 'number';
+      if (!show) { btn.style.display = 'none'; return; }
+      btn.style.display = '';
+      const left = result.manualLeft;
+      if (result.manualPending) {
+        btn.disabled = true;
+        btn.style.background = '#a0aec0'; btn.style.cursor = 'default';
+        btn.innerHTML = '<i class="fas fa-hourglass-half"></i> 開始待ち(今日あと' + left + '回)';
+      } else if (left <= 0) {
+        btn.disabled = true;
+        btn.style.background = '#a0aec0'; btn.style.cursor = 'default';
+        btn.innerHTML = '<i class="fas fa-ban"></i> 巡回開始(今日は使用済み)';
+      } else {
+        btn.disabled = false;
+        btn.style.background = '#dd6b20'; btn.style.cursor = 'pointer';
+        btn.innerHTML = '<i class="fas fa-play"></i> 巡回開始(今日あと' + left + '回)';
+      }
+    }
+    async function startWatcherPatrolNow() {
+      const btn = document.getElementById('progress-start-btn');
+      const mgrUrl = AppStorage.get("sh_sniper_url", "") || AppStorage.get("sh_tensite_url", "");
+      if (!mgrUrl) { alert("⚙️設定でマネージャーAPI URLを入力してください"); return; }
+      if (!confirm("ウォッチャーの巡回を最初からやり直します。\nウォッチャーの一覧は空になります。\n(1日2回まで。自動予約の分は数えません)\n\nよろしいですか？")) return;
+      if (btn) { btn.disabled = true; btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> 受付中'; }
+      try {
+        const res = await fetchWithAuth(mgrUrl, { method: "POST", body: JSON.stringify({ command: "startWatcherPatrolNow" }) });
+        const result = await res.json();
+        if (result.planLocked) { showToast("⚠️ " + (result.message || "このプランでは使えません")); }
+        else if (result.success) { showToast("✅ " + (result.message || "巡回開始を受け付けました")); }
+        else { showToast("⚠️ " + (result.message || "巡回開始できませんでした")); }
+      } catch (e) {
+        showToast("⚠️ 通信エラーが発生しました");
+      } finally {
+        loadPatrolProgress();
+      }
+    }
+
     async function loadPatrolProgress() {
       const summaryEl = document.getElementById('progress-summary');
       const activityEl = document.getElementById('progress-activity');
@@ -7614,6 +7658,7 @@ async function syncPatrolData() {
       try {
         const res = await fetchWithAuth(mgrUrl, { method: "POST", body: JSON.stringify({ command: "getPatrolProgress", scope: currentProgressScope }) });
         const result = await res.json();
+        renderWatcherStartBtn(result);
         if (!result.success) { summaryEl.innerHTML = '<div style="text-align:center; color:#e53e3e; padding:16px;">取得に失敗しました</div>'; return; }
         if (result.planLocked) { summaryEl.innerHTML = planLockHtml(result); activityEl.innerHTML = ''; return; }
         const progress = result.progress || {};
