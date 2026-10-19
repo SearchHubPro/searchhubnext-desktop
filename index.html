@@ -13,7 +13,7 @@
   <meta name="apple-mobile-web-app-title" content="SearchHub">
   <meta name="theme-color" content="#6d9eeb">
   <!-- 🌟 アプリの版。更新するたびに書き換える(古い画面が出た時に、これを見比べて自動で読み込み直す) -->
-  <meta name="sh-build" content="2026-10-19a">
+  <meta name="sh-build" content="2026-10-20a">
   <script>
     // 🌙 ダークモード:画面が出る前に付けて、白く光るのを防ぐ
     try { if (localStorage.getItem('sh_dark_mode') === '1') document.documentElement.classList.add('sh-dark'); } catch (e) {}
@@ -2571,6 +2571,15 @@
         document.body.appendChild(m);
       }
       var color = d.verdict === '買い' ? '#2f855a' : (d.verdict === '要確認' ? '#b7791f' : '#718096');
+      // 🌟【既読にする】AI判定を読んだだけで「もうええ」となった時に、商品ページを開かずに既読にする。
+      //   商品名を押した時と同じ markAsRead を使うので、グレー・バッジ・サーバーへの既読送信まで同じ動きになる。
+      //   もう既読のカードでは出さない。
+      var card = el.closest ? el.closest('.card') : null;
+      var readLink = card ? card.querySelector('.item-title a[data-key]') : null;
+      window.__aiReadLink = (readLink && !card.classList.contains('read-card')) ? readLink : null;
+      var readBtn = window.__aiReadLink
+        ? '<button style="background:#3182ce; color:#fff; border:none; padding:8px 18px; border-radius:6px; font-weight:bold; cursor:pointer; margin-right:8px;" onclick="aiVerdictMarkRead()">既読にする</button>'
+        : '';
       m.innerHTML = '<div class="modal-content" style="max-width:420px;">' +
         '<h3 style="margin-top:0;">🤖 AI判定</h3>' +
         '<div style="font-size:13px; color:#4a5568; margin-bottom:8px;">' + escapeHtml(d.title) + '</div>' +
@@ -2579,9 +2588,16 @@
         '<div style="font-size:14px; line-height:1.6; white-space:pre-wrap;">' + (escapeHtml(d.reason) || '—') + '</div>' +
         (d.note ? '<div style="margin-top:10px; font-size:12px; font-weight:bold; color:#4a5568;">メモ</div>' +
           '<div style="font-size:14px; line-height:1.6; white-space:pre-wrap;">' + escapeHtml(d.note) + '</div>' : '') +
-        '<div style="margin-top:16px; text-align:right;"><button style="background:#e2e8f0; color:#4a5568; border:none; padding:8px 18px; border-radius:6px; font-weight:bold; cursor:pointer;" onclick="document.getElementById(\'aiVerdictModal\').style.display=\'none\'">閉じる</button></div>' +
+        '<div style="margin-top:16px; text-align:right;">' + readBtn + '<button style="background:#e2e8f0; color:#4a5568; border:none; padding:8px 18px; border-radius:6px; font-weight:bold; cursor:pointer;" onclick="document.getElementById(\'aiVerdictModal\').style.display=\'none\'">閉じる</button></div>' +
         '</div>';
       m.style.display = 'flex';
+    }
+    function aiVerdictMarkRead() {
+      var link = window.__aiReadLink;
+      window.__aiReadLink = null;
+      if (link) markAsRead(link);
+      var m = document.getElementById('aiVerdictModal');
+      if (m) m.style.display = 'none';
     }
 
     function buildPatrolCardPC(item, gasSiteName, dateTimeText, uniqueKey) {
