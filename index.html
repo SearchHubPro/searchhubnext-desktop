@@ -13,7 +13,7 @@
   <meta name="apple-mobile-web-app-title" content="SearchHub">
   <meta name="theme-color" content="#6d9eeb">
   <!-- 🌟 アプリの版。更新するたびに書き換える(古い画面が出た時に、これを見比べて自動で読み込み直す) -->
-  <meta name="sh-build" content="2026-10-20a">
+  <meta name="sh-build" content="2026-10-20b">
   <script>
     // 🌙 ダークモード:画面が出る前に付けて、白く光るのを防ぐ
     try { if (localStorage.getItem('sh_dark_mode') === '1') document.documentElement.classList.add('sh-dark'); } catch (e) {}
@@ -668,6 +668,17 @@
           <input type="number" id="rs-dropSaturated" placeholder="20" style="width:100%; box-sizing:border-box; padding:8px; border:1px solid #cbd5e0; border-radius:6px; font-size:13px; margin-bottom:4px;">
           <div style="font-size:11px; color:#718096; margin-bottom:16px; line-height:1.6;">
             中古の出品者がこの人数以上の商品を、自動リサーチの対象から外します。0にすると働きません。
+          </div>
+          <!-- 🌟【殿堂入り】何度も仕入れている商品を、仕入れリストの期限切れで消さずに残す -->
+          <div id="rs-hof-box" style="display:none; background:#fffbea; border:1px solid #f6e05e; border-radius:8px; padding:10px 12px; margin-bottom:16px;">
+            <label style="font-size:12px; font-weight:bold; display:flex; align-items:center; gap:6px; margin-bottom:8px; cursor:pointer;"><input type="checkbox" id="rs-hofEnabled"> 👑 殿堂入り(仕入れリスト)</label>
+            <div style="display:flex; gap:8px; margin-bottom:6px;">
+              <div style="flex:1;"><div style="font-size:11px; color:#4a5568; margin-bottom:2px;">リストに入ってから(か月)</div><input type="number" id="rs-hofMonths" min="1" max="60" placeholder="12" style="width:100%; box-sizing:border-box; padding:8px; border:1px solid #cbd5e0; border-radius:6px; font-size:13px;"></div>
+              <div style="flex:1;"><div style="font-size:11px; color:#4a5568; margin-bottom:2px;">または仕入れ回数(回以上)</div><input type="number" id="rs-hofBuys" min="1" max="100" placeholder="5" style="width:100%; box-sizing:border-box; padding:8px; border:1px solid #cbd5e0; border-radius:6px; font-size:13px;"></div>
+            </div>
+            <div style="font-size:11px; color:#718096; line-height:1.6;">
+              どちらかを満たした商品は殿堂入りして、仕入れリストの商品名に👑が付きます。殿堂入りの商品は、精査日が<b>最後に仕入れた日から12か月後</b>になり、仕入れて登録するたびに伸びます。12か月仕入れなければ、期限切れチェックで消えます。判定は毎晩3時と、仕入れて登録したときです。
+            </div>
           </div>
           <label style="font-size:12px; font-weight:bold; display:block; margin-bottom:6px;">🎯 ターゲットカテゴリー(チェックしたものを抽出)</label>
           <div id="rs-category-grid" style="display:grid; grid-template-columns:1fr 1fr; gap:6px; font-size:11px;"></div>
@@ -5797,7 +5808,7 @@ async function syncPatrolData() {
             <div style="font-size:11px; font-weight:bold; color:${rankColor};">${rankText}</div>
           </td>
           <td style="max-width: 250px;">
-            <div style="white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-weight:bold; color:#1a365d; margin-bottom:6px; font-size:13px;" title="${title}">${title}</div>
+            <div style="white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-weight:bold; color:#1a365d; margin-bottom:6px; font-size:13px;" title="${title}">${item.hallOfFame ? '👑 ' : ''}${title}</div>
             <div style="display:flex; align-items:center; flex-wrap:wrap; gap:8px;">
               <span style="font-family:monospace; background:#fffaf0; color:#dd6b20; border:1px solid #fbd38d; padding:2px 6px; border-radius:4px; font-size:12px; font-weight:bold;">${asin}</span>
               <span style="font-size:12px; color:#4a5568; font-weight:bold;">型番: ${model}</span>
@@ -7471,6 +7482,7 @@ async function syncPatrolData() {
           ${cat.name}
         </label>`).join("");
     }
+    let hofReady = false;
     async function loadResearcherSettings() {
       rsLoaded = false;
       const apiKey = AppStorage.get("sh_supabase_key", "");
@@ -7506,6 +7518,14 @@ async function syncPatrolData() {
         document.getElementById("rs-minStock").value = d.min_seller_stock ?? 80;
         document.getElementById("rs-maxStock").value = d.max_seller_stock ?? 300;
         document.getElementById("rs-sellerAutoApprove").checked = d.seller_auto_approve === true;
+        // 🌟 殿堂入りの欄は、サーバーに準備(SQL)ができている時だけ出す
+        hofReady = ('hof_enabled' in d);
+        document.getElementById("rs-hof-box").style.display = hofReady ? 'block' : 'none';
+        if (hofReady) {
+          document.getElementById("rs-hofEnabled").checked = d.hof_enabled !== false;
+          document.getElementById("rs-hofMonths").value = d.hof_months ?? 12;
+          document.getElementById("rs-hofBuys").value = d.hof_buys ?? 5;
+        }
         rsLoaded = true;
       } catch (e) {}
     }
@@ -7552,6 +7572,22 @@ async function syncPatrolData() {
         const res = await fetchWithAuth(settingsUrl, { method: "PUT", body: JSON.stringify(payload) });
         const result = await res.json();
         if (result.success) {
+          // 🌟 殿堂入りの設定は manager に送る(欄が出ている時だけ)
+          if (hofReady) {
+            const mgrUrl = AppStorage.get("sh_sniper_url", "") || AppStorage.get("sh_tensite_url", "");
+            const hm = parseInt(document.getElementById("rs-hofMonths").value, 10);
+            const hb = parseInt(document.getElementById("rs-hofBuys").value, 10);
+            try {
+              const hr = await fetchWithAuth(mgrUrl, { method: "POST", body: JSON.stringify({
+                command: "saveHofSettings",
+                enabled: document.getElementById("rs-hofEnabled").checked,
+                months: isNaN(hm) ? 12 : hm,
+                buys: isNaN(hb) ? 5 : hb,
+              }) });
+              const hj = await hr.json();
+              if (!hj.success) { alert("⚠️ 殿堂入りの設定を保存できませんでした: " + (hj.message || "")); return; }
+            } catch (e) { alert("⚠️ 殿堂入りの設定を保存できませんでした(通信エラー)"); return; }
+          }
           alert("✅ リサーチャー設定を保存しました！");
         } else {
           alert("保存に失敗しました: " + (result.message || "不明なエラー"));
@@ -7568,6 +7604,7 @@ async function syncPatrolData() {
       research_keepa: "🔍 Keepa取得",
       research_market_check: "🔍 ヤフオク巡回",
       seller: "📦 セラーリスト挿入",
+      hall_of_fame: "👑 殿堂入り",
       research_discovery: "🔍 リサーチャー(セラー発見)",
       expiry: "🗑️ 期限切れチェック",
       update: "🔄 在庫データ更新",
