@@ -13,7 +13,7 @@
   <meta name="apple-mobile-web-app-title" content="SearchHub">
   <meta name="theme-color" content="#6d9eeb">
   <!-- 🌟 アプリの版。更新するたびに書き換える(古い画面が出た時に、これを見比べて自動で読み込み直す) -->
-  <meta name="sh-build" content="2026-10-20c">
+  <meta name="sh-build" content="2026-10-23a">
   <script>
     // 🌙 ダークモード:画面が出る前に付けて、白く光るのを防ぐ
     try { if (localStorage.getItem('sh_dark_mode') === '1') document.documentElement.classList.add('sh-dark'); } catch (e) {}
@@ -3891,6 +3891,63 @@ async function syncPatrolData() {
             globalInventoryData = json.data; invCurrentPage = 1; renderInventoryList();
           } catch(err) { resDiv.innerHTML = '<div class="card" style="text-align:center; color:#e53e3e; font-weight:bold;">❌ 取得に失敗しました</div>'; countEl.innerText = "通信失敗"; }
         }
+        // 🌟【価格改定の見張り】ライバル一覧(「🛒 良い: ¥2,800」の形)から、
+        //   ・カートを自分以外が取っている → 「カート取られ」
+        //   ・自分より安い他セラーがいる(状態は問わない・中古全部) → 「最安負け」
+        //   を判定して札を出す。札を押すと、ライバルの値段を一覧で見られる。
+        //   サーバー(cron の価格改定)も同じ判定で、件数をまとめてスマホに知らせる。
+        const PRICE_ALERT_RIVALS = {};
+        function priceAlertInfo(item) {
+          const list = Array.isArray(item.rivals) ? item.rivals : [];
+          const yen = (t) => { const m = String(t).match(/¥([\d,]+)/); return m ? Number(m[1].replace(/,/g, '')) : 0; };
+          const self = list.find(t => String(t).includes('★自分★'));
+          const mine = self ? yen(self) : Number(item.price || 0);
+          let cartLost = false, cheaper = 0;
+          list.forEach(t => {
+            const str = String(t);
+            if (str.includes('★自分★')) return;
+            if (str.startsWith('🛒')) cartLost = true;
+            const v = yen(str);
+            if (mine > 0 && v > 0 && v < mine) cheaper++;
+          });
+          return { cartLost, cheaper };
+        }
+        function priceAlertBadges(item, uniqueId) {
+          if (item.notFetched) return '';
+          const a = priceAlertInfo(item);
+          if (!a.cartLost && !a.cheaper) return '';
+          PRICE_ALERT_RIVALS[uniqueId] = item;
+          const st = 'color:white; padding:2px 6px; border-radius:4px; font-size:10px; font-weight:bold; margin-left:6px; cursor:pointer;';
+          let h = '';
+          if (a.cartLost) h += `<span onclick="showPriceAlertRivals('${uniqueId}')" style="background:#c53030; ${st}">🛒 カート取られ</span>`;
+          if (a.cheaper) h += `<span onclick="showPriceAlertRivals('${uniqueId}')" style="background:#dd6b20; ${st}">💴 最安負け(${a.cheaper}人)</span>`;
+          return h;
+        }
+        function showPriceAlertRivals(uniqueId) {
+          const item = PRICE_ALERT_RIVALS[uniqueId];
+          if (!item) return;
+          let m = document.getElementById('priceAlertModal');
+          if (!m) {
+            m = document.createElement('div');
+            m.id = 'priceAlertModal';
+            m.className = 'modal';
+            m.onclick = function (e) { if (e.target === m) m.style.display = 'none'; };
+            document.body.appendChild(m);
+          }
+          const rows = (item.rivals || []).map(t => {
+            const str = String(t);
+            const isSelf = str.includes('★自分★');
+            return `<div style="padding:6px 8px; border-bottom:1px solid #edf2f7; font-size:13px; ${isSelf ? 'font-weight:bold; color:#2b6cb0;' : ''}">${escapeHtml(str)}</div>`;
+          }).join('');
+          m.innerHTML = '<div class="modal-content" style="max-width:420px;">' +
+            '<h3 style="margin-top:0;">💰 ライバルの出品</h3>' +
+            '<div style="font-size:12px; color:#4a5568; margin-bottom:8px;">' + escapeHtml(item.title || '') + '</div>' +
+            '<div style="font-size:11px; color:#718096; margin-bottom:6px;">🛒 がカートを取っている出品です（価格改定で取ってきた時点の値段）。</div>' +
+            '<div style="max-height:50vh; overflow:auto; border:1px solid #e2e8f0; border-radius:6px;">' + (rows || '<div style="padding:8px;">情報なし</div>') + '</div>' +
+            '<div style="margin-top:14px; text-align:right;"><button style="background:#e2e8f0; color:#4a5568; border:none; padding:8px 18px; border-radius:6px; font-weight:bold; cursor:pointer;" onclick="document.getElementById(\'priceAlertModal\').style.display=\'none\'">閉じる</button></div>' +
+            '</div>';
+          m.style.display = 'flex';
+        }
         function renderInventoryList() {
           const kw = document.getElementById('price-search-kw').value.toLowerCase().trim();
           let filtered = globalInventoryData;
@@ -3912,6 +3969,7 @@ async function syncPatrolData() {
               let bColor = "#6d9eeb"; if (item.daysText.includes("30")) bColor = "#ea4335"; else if (item.daysText.includes("21")) bColor = "#fbbc04"; 
               badgeHtml = `<span style="background:${bColor}; color:white; padding:2px 6px; border-radius:4px; font-size:10px; font-weight:bold; margin-left:6px;">⚠️ ${item.daysText}</span>`;
             }
+            badgeHtml += priceAlertBadges(item, uniqueId);
             let imgHtml = '<div style="width:50px; height:50px; background:#f8fafc; border-radius:6px; display:flex; align-items:center; justify-content:center; font-size:9px; color:#999; border:1px solid #eee; margin:0 auto;">No Img</div>';
             if (item.img) imgHtml = `<div style="width:50px; height:50px; background:#fff; border:1px solid #eee; border-radius:6px; padding:2px; flex-shrink:0; margin:0 auto;"><img src="${item.img}" style="width:100%; height:100%; object-fit:contain;"></div>`;
             let rivalsHtml = `<div style="font-size:10px; color:#a0aec0;">ライバル情報なし</div>`;
