@@ -13,7 +13,7 @@
   <meta name="apple-mobile-web-app-title" content="SearchHub">
   <meta name="theme-color" content="#6d9eeb">
   <!-- 🌟 アプリの版。更新するたびに書き換える(古い画面が出た時に、これを見比べて自動で読み込み直す) -->
-  <meta name="sh-build" content="2026-10-23a">
+  <meta name="sh-build" content="2026-10-24b">
   <script>
     // 🌙 ダークモード:画面が出る前に付けて、白く光るのを防ぐ
     try { if (localStorage.getItem('sh_dark_mode') === '1') document.documentElement.classList.add('sh-dark'); } catch (e) {}
@@ -585,6 +585,7 @@
         <button id="progress-tab-sniper" onclick="switchProgressScope('sniper')" style="flex:1; padding:8px; border-radius:6px; border:none; font-weight:bold; font-size:12px; cursor:pointer; background:#edf2f7; color:#4a5568;">スナイパー</button>
         <button onclick="loadPatrolProgress()" style="padding:8px 12px; border-radius:6px; border:none; font-weight:bold; font-size:11px; cursor:pointer; background:#edf2f7; color:#4a5568;"><i class="fas fa-sync-alt"></i></button>
         <button id="progress-sync-btn" onclick="syncPatrolTargetsNow()" style="padding:8px 12px; border-radius:6px; border:none; font-weight:bold; font-size:11px; cursor:pointer; background:#3182ce; color:#fff; white-space:nowrap;"><i class="fas fa-link"></i> URL同期</button>
+        <label id="progress-dna-wrap" style="display:none; align-items:center; gap:4px; padding:6px 10px; border-radius:6px; background:#edf2f7; color:#4a5568; font-weight:bold; font-size:11px; white-space:nowrap; cursor:pointer;" title="オフにすると、前回と同じ商品も「前回と同じ」として一覧に並びます(巡回の確認用)"><input type="checkbox" id="progress-dna" onchange="saveWatcherDna(this)"> DNA</label>
         <button id="progress-start-btn" onclick="startWatcherPatrolNow()" style="display:none; padding:8px 12px; border-radius:6px; border:none; font-weight:bold; font-size:11px; cursor:pointer; background:#dd6b20; color:#fff; white-space:nowrap;"><i class="fas fa-play"></i> 巡回開始</button>
       </div>
       <div style="font-size:12px; font-weight:bold; color:#4a5568; margin-bottom:6px;">📊 サイト別進捗(今の巡回サイクル)</div>
@@ -2563,6 +2564,11 @@
     // =========================================================
     var AI_VERDICT_STORE = {};
     function aiBadgeHtml(item, uniqueKey) {
+      // 🌟【DNAオフ】前回と同じ商品(新着ではない)には「前回と同じ」の札を付ける
+      var same = item.dnaSame ? '<span class="pl-badge" style="background:#a0aec0; color:#fff;">前回と同じ</span>' : '';
+      return same + aiVerdictBadgeHtml(item, uniqueKey);
+    }
+    function aiVerdictBadgeHtml(item, uniqueKey) {
       var v = String(item.aiVerdict || '');
       var map = { '買い': ['購入判定', 'pl-ai-buy'], '要確認': ['要確認', 'pl-ai-check'], 'あかん': ['対象外', 'pl-ai-out'] };
       if (!map[v]) return '';
@@ -7719,7 +7725,32 @@ async function syncPatrolData() {
     // 🌟【ウォッチャーの巡回開始】1日2回まで(回数はサーバーが数える)。
     //   6時・17時の自動予約を設定できない人向け。押すと、自動予約と同じ動きを1回だけ起こす。
     //   ボタンはウォッチャーのタブを開いている時だけ出し、残り回数を表示する。
+    // 🌟【DNAのオン・オフ】ウォッチャーだけ。オン＝前回と同じ商品は出さない(今までどおり)。
+    //   オフ＝前回と同じ商品も「前回と同じ」の札付き・既読で一覧に並ぶ(巡回がちゃんと回れているかの確認用)。
+    function renderWatcherDnaSwitch(result) {
+      const wrap = document.getElementById('progress-dna-wrap');
+      const cb = document.getElementById('progress-dna');
+      if (!wrap || !cb) return;
+      const show = currentProgressScope === 'watcher' && result && !result.planLocked && typeof result.watcherDna === 'boolean';
+      wrap.style.display = show ? 'inline-flex' : 'none';
+      if (show) cb.checked = result.watcherDna;
+    }
+    async function saveWatcherDna(cb) {
+      const on = cb.checked;
+      const msg = on
+        ? "DNAをオンにします。\n前回と同じ商品は、一覧に出なくなります(今までどおり)。"
+        : "DNAをオフにします。\n前回と同じ商品も「前回と同じ」の札付きで一覧に並びます(巡回の確認用)。\n※ウォッチャー拡張 2.9.4 以上が必要です。";
+      if (!confirm(msg)) { cb.checked = !on; return; }
+      const mgrUrl = AppStorage.get("sh_sniper_url", "") || AppStorage.get("sh_tensite_url", "");
+      try {
+        const res = await fetchWithAuth(mgrUrl, { method: "POST", body: JSON.stringify({ command: "saveWatcherDna", on }) });
+        const result = await res.json();
+        if (result.success) showToast(on ? "✅ DNAをオンにしました" : "✅ DNAをオフにしました(次の巡回から効きます)");
+        else { cb.checked = !on; showToast("⚠️ " + (result.message || "保存できませんでした")); }
+      } catch (e) { cb.checked = !on; showToast("⚠️ 通信エラーが発生しました"); }
+    }
     function renderWatcherStartBtn(result) {
+      renderWatcherDnaSwitch(result);
       const btn = document.getElementById('progress-start-btn');
       if (!btn) return;
       const show = currentProgressScope === 'watcher' && result && !result.planLocked && typeof result.manualLeft === 'number';
